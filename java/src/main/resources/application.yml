@@ -1,0 +1,36 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: meeting-assistant
+  datasource:
+    url: jdbc:h2:mem:meetingdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+# MiniMax LLM 配置
+minimax:
+  api-key: ${MINIMAX_API_KEY:}
+  group-id: ${MINIMAX_GROUP_ID:}
+  model: ${MINIMAX_MODEL:abab6.5s-chat}
+
+# Jira 配置
+jira:
+  server: ${JIRA_SERVER:}
+  email: ${JIRA_EMAIL:}
+  api-token: ${JIRA_API_TOKEN:}
+  project-key: ${JIRA_PROJECT_KEY:MEET}
+
+logging:
+  level:
+    com.meeting: INFO
