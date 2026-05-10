@@ -61,7 +61,7 @@ docker-compose.override.yml
 *.bin
 *.pt
 *.onnx
-models/
+/models/
 
 # OS
 .DS_Store
