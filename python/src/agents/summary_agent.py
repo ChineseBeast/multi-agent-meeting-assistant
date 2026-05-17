@@ -13,6 +13,7 @@ from typing import Any
 from loguru import logger
 
 from ..integrations.minimax_client import MiniMaxClient
+from ..integrations.circuit_breaker import CircuitBreakerOpenException
 from ..models.schemas import (
     MeetingStatus,
     MeetingSummary,
@@ -79,6 +80,7 @@ class SummaryAgent:
         LangGraph 节点函数 —— 生成会议摘要
 
         与 Action Agent、Insight Agent 并行执行。
+        仅返回本节点负责的 key（summary、errors），不返回整个 state。
         """
         meeting_id = state.get("meeting_id", "unknown")
         logger.info(f"[SummaryAgent] Processing meeting: {meeting_id}")
@@ -86,27 +88,34 @@ class SummaryAgent:
         transcript_text = state.get("transcript_text", "")
         if not transcript_text:
             logger.warning("[SummaryAgent] No transcript text available")
-            state["summary"] = MeetingSummary(
-                title="未知会议", date="", participants=[], topics=[],
-                decisions=[], next_steps=[],
-            )
-            return state
+            return {
+                "summary": MeetingSummary(
+                    title="未知会议", date="", participants=[], topics=[],
+                    decisions=[], next_steps=[],
+                ),
+            }
 
         try:
             summary = await self._generate_summary(transcript_text)
-            state["summary"] = summary
             logger.info(
                 f"[SummaryAgent] Summary generated: {summary.title}, "
                 f"{len(summary.topics)} topics"
             )
+            return {"summary": summary}
+        except CircuitBreakerOpenException:
+            logger.warning(
+                "[SummaryAgent] LLM Circuit is OPEN. Triggering fast fallback."
+            )
+            return {
+                "summary": self._generate_fallback_summary(transcript_text),
+                "errors": ["LLM Circuit Open: Fast fallback triggered"],
+            }
         except Exception as e:
             logger.error(f"[SummaryAgent] Error: {e}")
-            state["errors"] = state.get("errors", []) + [
-                f"SummaryAgent: {str(e)}"
-            ]
-            state["summary"] = self._generate_fallback_summary(transcript_text)
-
-        return state
+            return {
+                "summary": self._generate_fallback_summary(transcript_text),
+                "errors": [f"SummaryAgent: {str(e)}"],
+            }
 
     async def _generate_summary(self, transcript: str) -> MeetingSummary:
         """调用 LLM 生成结构化摘要"""

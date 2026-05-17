@@ -41,6 +41,7 @@ LangGraph 会议处理图 —— 多Agent编排核心
 from __future__ import annotations
 
 import asyncio
+import operator
 from typing import Any, TypedDict, Annotated
 
 from langgraph.graph import StateGraph, START, END
@@ -69,6 +70,9 @@ class GraphState(TypedDict, total=False):
     """
     LangGraph 使用 TypedDict 定义状态结构。
     每个 Node（Agent）都读写这个共享状态。
+
+    注意：errors 使用 Annotated[list[str], operator.add] 作为 reducer，
+    允许并行节点（summary/action/insight）同时向 errors 列表追加错误。
     """
     meeting_id: str
     status: str
@@ -86,8 +90,8 @@ class GraphState(TypedDict, total=False):
     # Follow-up 输出
     followup: Any
 
-    # 错误记录
-    errors: list[str]
+    # 错误记录（使用 reducer 支持并行写入）
+    errors: Annotated[list[str], operator.add]
 
 
 # ============================================================

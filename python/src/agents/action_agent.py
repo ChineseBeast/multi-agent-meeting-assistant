@@ -86,6 +86,7 @@ class ActionAgent:
         LangGraph 节点函数 —— 提取待办并同步
 
         与 Summary Agent、Insight Agent 并行执行。
+        仅返回本节点负责的 key（actions、errors），不返回整个 state。
         """
         meeting_id = state.get("meeting_id", "unknown")
         logger.info(f"[ActionAgent] Processing meeting: {meeting_id}")
@@ -93,36 +94,37 @@ class ActionAgent:
         transcript_text = state.get("transcript_text", "")
         if not transcript_text:
             logger.warning("[ActionAgent] No transcript text available")
-            state["actions"] = ActionResult(
-                meeting_id=meeting_id, action_items=[]
-            )
-            return state
+            return {
+                "actions": ActionResult(
+                    meeting_id=meeting_id, action_items=[]
+                ),
+            }
 
         try:
             action_items = await self._extract_actions(transcript_text)
             synced_items = await self._sync_to_external(action_items, meeting_id)
 
-            state["actions"] = ActionResult(
-                meeting_id=meeting_id,
-                action_items=synced_items,
-                sync_status={
-                    "jira": "enabled" if self.jira.is_enabled else "disabled",
-                    "feishu": "enabled" if self.feishu.is_enabled else "disabled",
-                },
-            )
             logger.info(
                 f"[ActionAgent] Extracted {len(synced_items)} action items"
             )
+            return {
+                "actions": ActionResult(
+                    meeting_id=meeting_id,
+                    action_items=synced_items,
+                    sync_status={
+                        "jira": "enabled" if self.jira.is_enabled else "disabled",
+                        "feishu": "enabled" if self.feishu.is_enabled else "disabled",
+                    },
+                ),
+            }
         except Exception as e:
             logger.error(f"[ActionAgent] Error: {e}")
-            state["errors"] = state.get("errors", []) + [
-                f"ActionAgent: {str(e)}"
-            ]
-            state["actions"] = ActionResult(
-                meeting_id=meeting_id, action_items=[]
-            )
-
-        return state
+            return {
+                "actions": ActionResult(
+                    meeting_id=meeting_id, action_items=[]
+                ),
+                "errors": [f"ActionAgent: {str(e)}"],
+            }
 
     async def _extract_actions(self, transcript: str) -> list[ActionItem]:
         """调用 LLM 提取行动项"""

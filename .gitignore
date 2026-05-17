@@ -54,6 +54,13 @@ Thumbs.db
 *.log
 logs/
 
+# Database
+*.db
+
+# Project temp files
+step1.txt
+plan.md
+
 # Docker
 docker-compose.override.yml
 

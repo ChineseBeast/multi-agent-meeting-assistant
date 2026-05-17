@@ -76,6 +76,7 @@ class InsightAgent:
         LangGraph 节点函数 —— 分析会议洞察
 
         与 Summary Agent、Action Agent 并行执行。
+        仅返回本节点负责的 key（insights、errors），不返回整个 state。
         """
         meeting_id = state.get("meeting_id", "unknown")
         logger.info(f"[InsightAgent] Processing meeting: {meeting_id}")
@@ -85,8 +86,7 @@ class InsightAgent:
 
         if not transcript_text:
             logger.warning("[InsightAgent] No transcript text available")
-            state["insights"] = MeetingInsight(meeting_id=meeting_id)
-            return state
+            return {"insights": MeetingInsight(meeting_id=meeting_id)}
 
         try:
             # Step 1: 规则引擎计算发言统计
@@ -98,7 +98,7 @@ class InsightAgent:
             )
 
             # Step 3: 合并结果
-            state["insights"] = MeetingInsight(
+            insights = MeetingInsight(
                 meeting_id=meeting_id,
                 overall_sentiment=llm_insights.get(
                     "overall_sentiment", SentimentType.NEUTRAL
@@ -117,22 +117,21 @@ class InsightAgent:
 
             logger.info(
                 f"[InsightAgent] Analysis complete: "
-                f"sentiment={state['insights'].overall_sentiment}, "
-                f"efficiency={state['insights'].efficiency_score:.1f}"
+                f"sentiment={insights.overall_sentiment}, "
+                f"efficiency={insights.efficiency_score:.1f}"
             )
+            return {"insights": insights}
 
         except Exception as e:
             logger.error(f"[InsightAgent] Error: {e}")
-            state["errors"] = state.get("errors", []) + [
-                f"InsightAgent: {str(e)}"
-            ]
             speaker_stats = self._compute_speaker_stats(transcript)
-            state["insights"] = MeetingInsight(
-                meeting_id=meeting_id,
-                speaker_stats=speaker_stats,
-            )
-
-        return state
+            return {
+                "insights": MeetingInsight(
+                    meeting_id=meeting_id,
+                    speaker_stats=speaker_stats,
+                ),
+                "errors": [f"InsightAgent: {str(e)}"],
+            }
 
     @staticmethod
     def _compute_speaker_stats(
